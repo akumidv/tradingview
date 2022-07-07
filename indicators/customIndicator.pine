@@ -1,0 +1,114 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © akumidv
+
+//@version=5
+indicator("CustomIndex", overlay=false)
+// TODO Improvements
+// - add weight to normalized price
+// - normalize weight to 100%
+// - show on chart with price normalization - offset and multipler
+// - label instad char for reloading
+
+
+shouldNormalize = input.bool(true, title='Normalize price?', group='Base parameters')
+shouldNormalizeByLast = input.bool(true, title='Renormalize price by last?', group='Base parameters')
+shouldDrawTickers = input.bool(true, title='Show index components?', group='Base parameters')
+
+shouldUseTicker1 = input.bool(true, title="", inline='tik1', group='Tikers')
+tickerName1 = input.string('BINANCE:BTCUSDT', title='Ticker 1', inline='tik1', group='Tikers')
+tickerWeight1 = input.int(10, title='Weight %', inline='tik1', group='Tikers')
+
+shouldUseTicker2 = input.bool(true, title="", inline='tik2', group='Tikers')
+tickerName2 = input.string('BINANCE:ETHUSDT', title='Ticker 2', inline='tik2', group='Tikers')
+tickerWeight2 = input.int(10, title='Weight %', inline='tik2', group='Tikers')
+
+shouldUseTicker3 = input.bool(true, title="", inline='tik3', group='Tikers')
+tickerName3 = input.string('BINANCE:SOLUSDT', title='Ticker 3', inline='tik3', group='Tikers')
+tickerWeight3 = input.int(10, title='Weight %', inline='tik3', group='Tikers')
+
+shouldUseTicker4 = input.bool(true, title="", inline='tik4', group='Tikers')
+tickerName4 = input.string('BINANCE:BNBUSDT', title='Ticker 4', inline='tik4', group='Tikers')
+tickerWeight4 = input.int(10, title='Weight %', inline='tik4', group='Tikers')
+
+shouldUseTicker5 = input.bool(true, title="", inline='tik5', group='Tikers')
+tickerName5 = input.string('BINANCE:DOGEUSDT', title='Ticker 5', inline='tik5', group='Tikers')
+tickerWeight5 = input.int(10, title='Weight %', inline='tik5', group='Tikers')
+
+shouldUseTicker6 = input.bool(false, title="", inline='tik6', group='Tikers')
+tickerName6 = input.string('BINANCE:AVAXUSDT', title='Ticker 6', inline='tik6', group='Tikers')
+tickerWeight6 = input.int(10, title='Weight %', inline='tik6', group='Tikers')
+
+shouldUseTicker7 = input.bool(false, title="", inline='tik7', group='Tikers')
+tickerName7 = input.string('BINANCE:XRPUSDT', title='Ticker 7', inline='tik7', group='Tikers')
+tickerWeight7 = input.int(10, title='Weight %', inline='tik7', group='Tikers')
+
+shouldUseTicker8 = input.bool(false, title="", inline='tik8', group='Tikers')
+tickerName8 = input.string('BINANCE:SANDUSDT', title='Ticker 8', inline='tik8', group='Tikers')
+tickerWeight8 = input.int(10, title='Weight %', inline='tik8', group='Tikers')
+
+shouldUseTicker9 = input.bool(false, title="", inline='tik9', group='Tikers')
+tickerName9 = input.string('BINANCE:ATOMUSDT', title='Ticker 9', inline='tik9', group='Tikers')
+tickerWeight9 = input.int(10, title='Weight %', inline='tik9', group='Tikers')
+
+shouldUseTicker10 = input.bool(false, title="", inline='tik10', group='Tikers')
+tickerName10 = input.string('BINANCE:MATICUSDT', title='Ticker 10', inline='tik10', group='Tikers')
+tickerWeight10 = input.int(10, title='Weight %', inline='tik10', group='Tikers')
+
+// Data preparation
+var int NUMBER_OF_TICKETS = 10
+var float[] tickerInitPrices = array.new_float(NUMBER_OF_TICKETS, na)
+var float[] normTickerPrices = array.new_float(NUMBER_OF_TICKETS, na)
+var float[] tickerWeights = array.from(float(tickerWeight1)/100, float(tickerWeight2)/100, float(tickerWeight3)/100, float(tickerWeight4)/100, float(tickerWeight5)/100,
+  float(tickerWeight6)/100, float(tickerWeight7)/100, float(tickerWeight8)/100, float(tickerWeight9)/100, float(tickerWeight10)/100)
+var bool[] tickersUsage = array.from(shouldUseTicker1, shouldUseTicker2, shouldUseTicker3, shouldUseTicker4, shouldUseTicker5, shouldUseTicker6, shouldUseTicker7, shouldUseTicker8, shouldUseTicker9, shouldUseTicker10)
+
+float[] tickerPrices = array.from(request.security(tickerName1, '',close), request.security(tickerName2, '',close),
+  request.security(tickerName3, '',close), request.security(tickerName4, '',close), request.security(tickerName5, '',close),
+  request.security(tickerName6, '',close), request.security(tickerName7, '',close),
+  request.security(tickerName8, '',close), request.security(tickerName9, '',close), request.security(tickerName10, '',close))
+
+
+// Logic
+normalizeAllTickerPrices(arrInitPrice, arrCurPrice) =>
+    for i = 0 to NUMBER_OF_TICKETS - 1
+        float curPrice = array.get(arrCurPrice, i)
+        array.set(arrInitPrice, i, curPrice)
+
+bool isNormalized = false
+float indexPrice = 0
+for i = 0 to NUMBER_OF_TICKETS - 1
+    float curPrice = array.get(tickerPrices, i)
+    if not array.get(tickersUsage, i) or na(curPrice)
+        continue
+
+    float initPrice = array.get(tickerInitPrices, i)
+    if na(initPrice) and not na(curPrice)
+        initPrice := curPrice
+        if shouldNormalizeByLast
+            normalizeAllTickerPrices(tickerInitPrices, tickerPrices)
+            isNormalized := true
+        else
+            array.set(tickerInitPrices, i, curPrice)
+
+    float normTickerPrice = shouldNormalize ? curPrice / initPrice : curPrice * array.get(tickerWeights, i)
+    array.set(normTickerPrices, i, normTickerPrice)
+    indexPrice := indexPrice + normTickerPrice
+
+
+// Drawing
+
+plot(indexPrice, title='Index', color=color.blue)
+plot(shouldDrawTickers and shouldUseTicker1 ? array.get(normTickerPrices, 0) : na, title='Ticker1', color=color.navy)
+plot(shouldDrawTickers and shouldUseTicker2 ? array.get(normTickerPrices, 1) : na, title='Ticker2', color=color.maroon)
+plot(shouldDrawTickers and shouldUseTicker3 ? array.get(normTickerPrices, 2) : na, title='Ticker3', color=color.olive)
+plot(shouldDrawTickers and shouldUseTicker4 ? array.get(normTickerPrices, 3) : na, title='Ticker4', color=color.teal)
+plot(shouldDrawTickers and shouldUseTicker5 ? array.get(normTickerPrices, 4) : na, title='Ticker5', color=color.fuchsia)
+
+plot(shouldDrawTickers and shouldUseTicker6 ? array.get(normTickerPrices, 5) : na, title='Ticker6', color=color.silver)
+plot(shouldDrawTickers and shouldUseTicker7 ? array.get(normTickerPrices, 6) : na, title='Ticker7', color=color.purple)
+plot(shouldDrawTickers and shouldUseTicker8 ? array.get(normTickerPrices, 7) : na, title='Ticker8', color=color.lime)
+plot(shouldDrawTickers and shouldUseTicker9 ? array.get(normTickerPrices, 8) : na, title='Ticker9', color=color.orange)
+plot(shouldDrawTickers and shouldUseTicker10 ? array.get(normTickerPrices, 9) : na, title='Ticker10', color=color.aqua)
+
+plotchar(isNormalized ? indexPrice * 1.05 : na, title='Reload', char='⟳', location=location.absolute, size=size.auto, color=color.black)
+
